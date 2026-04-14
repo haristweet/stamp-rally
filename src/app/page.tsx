@@ -43,15 +43,12 @@ export default function HomePage() {
     [storesWithDistance, visitedIds]
   );
 
-  const handleFile = useCallback(async (file: File) => {
-    setImportError(null);
-    const text = await file.text();
+  const loadCsvText = useCallback((text: string, chainName: string) => {
     const result = parseCsv(text);
     if (!result.ok) {
       setImportError(result.error);
       return;
     }
-    const chainName = file.name.replace(/\.csv$/i, "");
     const data: ChainData = {
       chainName,
       importedAt: new Date().toISOString(),
@@ -62,6 +59,30 @@ export default function HomePage() {
     setChain(data);
     setVisits([]);
   }, []);
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      setImportError(null);
+      const text = await file.text();
+      loadCsvText(text, file.name.replace(/\.csv$/i, ""));
+    },
+    [loadCsvText]
+  );
+
+  const handleUseSample = useCallback(async () => {
+    setImportError(null);
+    try {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+      const res = await fetch(`${base}/sample-stores.csv`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      loadCsvText(text, "サンプル（首都圏10駅）");
+    } catch (e) {
+      setImportError(
+        `サンプルの読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }, [loadCsvText]);
 
   const requestLocation = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -115,7 +136,11 @@ export default function HomePage() {
       </header>
 
       {!chain ? (
-        <ImportPanel onFile={handleFile} error={importError} />
+        <ImportPanel
+          onFile={handleFile}
+          onUseSample={handleUseSample}
+          error={importError}
+        />
       ) : (
         <>
           <section className="mb-4 rounded-lg bg-blue-50 p-4">
@@ -200,9 +225,11 @@ function TabButton({
 
 function ImportPanel({
   onFile,
+  onUseSample,
   error,
 }: {
   onFile: (file: File) => void;
+  onUseSample: () => void;
   error: string | null;
 }) {
   return (
@@ -224,6 +251,13 @@ function ImportPanel({
           }}
         />
       </label>
+      <div className="mt-4 text-xs text-gray-500">または</div>
+      <button
+        onClick={onUseSample}
+        className="mt-2 rounded-full border border-gray-400 px-4 py-2 text-sm text-gray-700"
+      >
+        サンプル（首都圏10駅）を使う
+      </button>
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </section>
   );
