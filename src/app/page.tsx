@@ -69,20 +69,23 @@ export default function HomePage() {
     [loadCsvText]
   );
 
-  const handleUseSample = useCallback(async () => {
-    setImportError(null);
-    try {
-      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-      const res = await fetch(`${base}/sample-stores.csv`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      loadCsvText(text, "サンプル（首都圏10駅）");
-    } catch (e) {
-      setImportError(
-        `サンプルの読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-  }, [loadCsvText]);
+  const handleUsePreset = useCallback(
+    async (file: string, label: string) => {
+      setImportError(null);
+      try {
+        const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+        const res = await fetch(`${base}/${file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        loadCsvText(text, label);
+      } catch (e) {
+        setImportError(
+          `読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    },
+    [loadCsvText]
+  );
 
   const requestLocation = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -138,7 +141,7 @@ export default function HomePage() {
       {!chain ? (
         <ImportPanel
           onFile={handleFile}
-          onUseSample={handleUseSample}
+          onUsePreset={handleUsePreset}
           error={importError}
         />
       ) : (
@@ -225,11 +228,11 @@ function TabButton({
 
 function ImportPanel({
   onFile,
-  onUseSample,
+  onUsePreset,
   error,
 }: {
   onFile: (file: File) => void;
-  onUseSample: () => void;
+  onUsePreset: (file: string, label: string) => void;
   error: string | null;
 }) {
   return (
@@ -251,13 +254,23 @@ function ImportPanel({
           }}
         />
       </label>
-      <div className="mt-4 text-xs text-gray-500">または</div>
-      <button
-        onClick={onUseSample}
-        className="mt-2 rounded-full border border-gray-400 px-4 py-2 text-sm text-gray-700"
-      >
-        サンプル（首都圏10駅）を使う
-      </button>
+      <div className="mt-4 text-xs text-gray-500">または プリセットから選ぶ</div>
+      <div className="mt-2 flex flex-col gap-2">
+        <button
+          onClick={() => onUsePreset("sample-stores.csv", "サンプル（首都圏10駅）")}
+          className="rounded-full border border-gray-400 px-4 py-2 text-sm text-gray-700"
+        >
+          サンプル（首都圏10駅）
+        </button>
+        <button
+          onClick={() =>
+            onUsePreset("bookoff-tokyo-kanagawa.csv", "BOOKOFF 東京・神奈川")
+          }
+          className="rounded-full border border-orange-400 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800"
+        >
+          BOOKOFF 東京・神奈川（154店舗）
+        </button>
+      </div>
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </section>
   );
