@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChainData, VisitRecord } from "@/lib/types";
 import { loadChain, loadVisits, saveChain, clearChain, addVisit, saveVisits } from "@/lib/storage";
 import { parseCsv } from "@/lib/csv";
+import { Radar } from "./Radar";
 import { STAMP_RADIUS_M, distanceMeters } from "@/lib/geo";
 
 type GeoState =
@@ -37,7 +38,7 @@ export default function HomePage() {
   const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [geo, setGeo] = useState<GeoState>({ status: "idle" });
   const [importError, setImportError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"stamp" | "list">("stamp");
+  const [tab, setTab] = useState<"stamp" | "radar" | "list">("stamp");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -206,14 +207,30 @@ export default function HomePage() {
 
           <nav className="mb-3 flex gap-2">
             <TabButton active={tab === "stamp"} onClick={() => setTab("stamp")}>
-              スタンプを押す
+              スタンプ
+            </TabButton>
+            <TabButton active={tab === "radar"} onClick={() => setTab("radar")}>
+              レーダー
             </TabButton>
             <TabButton active={tab === "list"} onClick={() => setTab("list")}>
               スタンプ帳
             </TabButton>
           </nav>
 
-          {tab === "stamp" ? (
+          {tab === "radar" ? (
+            geo.status === "ok" || geo.status === "watching" ? (
+              <Radar
+                userLat={geo.lat}
+                userLng={geo.lng}
+                stores={chain.stores}
+                visitedIds={visitedIds}
+              />
+            ) : (
+              <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                先に「スタンプ」タブで位置情報の追跡を開始してください
+              </p>
+            )
+          ) : tab === "stamp" ? (
             <StampPanel
               geo={geo}
               onStart={startWatch}
