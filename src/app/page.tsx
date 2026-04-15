@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChainData, VisitRecord } from "@/lib/types";
 import { loadChain, loadVisits, saveChain, clearChain, addVisit, saveVisits } from "@/lib/storage";
 import { parseCsv } from "@/lib/csv";
@@ -10,7 +10,27 @@ type GeoState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ok"; lat: number; lng: number; accuracy: number; at: number }
+  | {
+      status: "watching";
+      lat: number;
+      lng: number;
+      accuracy: number;
+      at: number;
+    }
   | { status: "error"; message: string };
+
+function geoErrorMessage(err: GeolocationPositionError): string {
+  switch (err.code) {
+    case err.PERMISSION_DENIED:
+      return "位置情報の利用が許可されていません。設定 → Safari → 位置情報 を確認してください。";
+    case err.POSITION_UNAVAILABLE:
+      return "位置情報を取得できませんでした（屋内などで GPS 信号が弱い可能性があります）。";
+    case err.TIMEOUT:
+      return "位置情報の取得がタイムアウトしました。屋外で再度お試しください。";
+    default:
+      return `位置情報の取得に失敗: ${err.message}`;
+  }
+}
 
 export default function HomePage() {
   const [chain, setChain] = useState<ChainData | null>(null);
@@ -29,11 +49,13 @@ export default function HomePage() {
   const visitedIds = useMemo(() => new Set(visits.map((v) => v.storeId)), [visits]);
 
   const storesWithDistance = useMemo(() => {
-    if (!chain || geo.status !== "ok") return [];
+    if (!chain) return [];
+    if (geo.status !== "ok" && geo.status !== "watching") return [];
+    const { lat, lng } = geo;
     return chain.stores
       .map((s) => ({
         store: s,
-        distance: distanceMeters(geo.lat, geo.lng, s.lat, s.lng),
+        distance: distanceMeters(lat, lng, s.lat, s.lng),
       }))
       .sort((a, b) => a.distance - b.distance);
   }, [chain, geo]);
@@ -87,26 +109,40 @@ export default function HomePage() {
     [loadCsvText]
   );
 
-  const requestLocation = useCallback(() => {
+  const watchIdRef = useRef<number | null>(null);
+
+  const stopWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setGeo({ status: "idle" });
+  }, []);
+
+  const startWatch = useCallback(() => {
     if (!("geolocation" in navigator)) {
       setGeo({ status: "error", message: "この端末はGeolocationに対応していません" });
       return;
     }
+    stopWatch();
     setGeo({ status: "loading" });
-    navigator.geolocation.getCurrentPosition(
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) =>
         setGeo({
-          status: "ok",
+          status: "watching",
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           at: Date.now(),
         }),
-      (err) =>
-        setGeo({ status: "error", message: `位置情報の取得に失敗: ${err.message}` }),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      (err) => setGeo({ status: "error", message: geoErrorMessage(err) }),
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
     );
-  }, []);
+  }, [stopWatch]);
+
+  useEffect(() => {
+    return () => stopWatch();
+  }, [stopWatch]);
 
   const handleStamp = useCallback((storeId: string) => {
     setVisits(addVisit(storeId));
@@ -180,7 +216,9 @@ export default function HomePage() {
           {tab === "stamp" ? (
             <StampPanel
               geo={geo}
-              onRequest={requestLocation}
+              onStart={startWatch}
+              onStop={stopWatch}
+              isWatching={geo.status === "watching" || geo.status === "loading"}
               nearest={nearestUnvisited}
               nearestAny={storesWithDistance[0]}
               visitedIds={visitedIds}
@@ -283,44 +321,64 @@ type NearItem = {
 
 function StampPanel({
   geo,
-  onRequest,
+  onStart,
+  onStop,
+  isWatching,
   nearest,
   nearestAny,
   visitedIds,
   onStamp,
 }: {
   geo: GeoState;
-  onRequest: () => void;
+  onStart: () => void;
+  onStop: () => void;
+  isWatching: boolean;
   nearest: NearItem | undefined;
   nearestAny: NearItem | undefined;
   visitedIds: Set<string>;
   onStamp: (id: string) => void;
 }) {
+  const hasFix = geo.status === "ok" || geo.status === "watching";
   const target = nearest ?? nearestAny;
   const inRange = target ? target.distance <= STAMP_RADIUS_M : false;
   const alreadyVisited = target ? visitedIds.has(target.store.id) : false;
+  const fix = hasFix
+    ? (geo as Extract<GeoState, { status: "ok" | "watching" }>)
+    : null;
 
   return (
     <section>
       <button
-        onClick={onRequest}
-        className="mb-4 w-full rounded-lg bg-gray-900 py-3 font-semibold text-white"
+        onClick={isWatching ? onStop : onStart}
+        className={`mb-2 w-full rounded-lg py-3 font-semibold text-white ${
+          isWatching ? "bg-red-600" : "bg-gray-900"
+        }`}
       >
-        {geo.status === "loading" ? "取得中…" : "現在地を取得"}
+        {geo.status === "loading"
+          ? "取得中…"
+          : isWatching
+            ? "位置情報の追跡を停止"
+            : "位置情報の追跡を開始"}
       </button>
+      {isWatching && (
+        <p className="mb-4 text-center text-xs text-emerald-700">
+          ● 追跡中（移動すると自動更新されます）
+        </p>
+      )}
 
       {geo.status === "error" && (
         <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{geo.message}</p>
       )}
 
-      {geo.status === "ok" && (
+      {fix && (
         <p className="mb-4 text-xs text-gray-500">
-          現在地: {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)} （精度 ±
-          {Math.round(geo.accuracy)}m）
+          現在地: {fix.lat.toFixed(5)}, {fix.lng.toFixed(5)} （精度 ±
+          {Math.round(fix.accuracy)}m / 最終更新{" "}
+          {new Date(fix.at).toLocaleTimeString("ja-JP")}）
         </p>
       )}
 
-      {geo.status === "ok" && target && (
+      {fix && target && (
         <div className="rounded-lg border p-4">
           <div className="text-xs text-gray-500">
             {alreadyVisited ? "最寄り店舗（訪問済）" : "最寄りの未訪問店舗"}
