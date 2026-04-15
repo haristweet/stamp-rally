@@ -11,8 +11,8 @@ function classify(id) {
   if (/^(SP|SB)/i.test(s)) return "直営";
   const n = parseInt(parseFloat(s), 10);
   if (Number.isFinite(n)) {
-    if (n >= 10000 && n < 20000) return "直営";
-    if (n >= 20000 && n < 30000) return "FC";
+    if (n >= 10000 && n < 20000) return "FC";
+    if (n >= 20000 && n < 30000) return "直営";
   }
   return "不明";
 }
