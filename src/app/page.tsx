@@ -323,7 +323,7 @@ function ImportPanel({
           }
           className="rounded-full border border-orange-400 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800"
         >
-          BOOKOFF 東京・神奈川（154店舗）
+          BOOKOFF 東京・神奈川
         </button>
       </div>
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
