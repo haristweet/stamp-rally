@@ -418,7 +418,7 @@ function StampPanel({
             {alreadyVisited ? "最寄り店舗（訪問済）" : "最寄りの未訪問店舗"}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-lg font-bold">{target.store.name}</span>
+            <span className="text-lg font-bold">{shortName(target.store.name)}</span>
             <KindBadge kind={target.store.kind} />
             {target.store.scale && (
               <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs text-gray-700">
@@ -476,6 +476,11 @@ function StampBook({
     const av = visitMap.has(a.id) ? 0 : 1;
     const bv = visitMap.has(b.id) ? 0 : 1;
     if (av !== bv) return av - bv;
+    const da = distMap.get(a.id);
+    const db = distMap.get(b.id);
+    if (da !== undefined && db !== undefined) return da - db;
+    if (da !== undefined) return -1;
+    if (db !== undefined) return 1;
     return a.name.localeCompare(b.name, "ja");
   });
 
@@ -496,8 +501,10 @@ function StampBook({
               {visitedAt ? "✅" : "・"}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div className="truncate font-semibold">{s.name}</div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <div className="font-semibold leading-tight break-words">
+                  {shortName(s.name)}
+                </div>
                 <KindBadge kind={s.kind} />
               </div>
               <div className="truncate text-xs text-gray-500">{s.address}</div>
@@ -514,6 +521,11 @@ function StampBook({
       })}
     </ul>
   );
+}
+
+function shortName(name: string): string {
+  // 全店共通の "BOOKOFF " プレフィックスは省略して表示
+  return name.replace(/^BOOKOFF\s+/i, "");
 }
 
 function formatDistance(m: number): string {
