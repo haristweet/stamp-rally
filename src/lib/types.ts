@@ -4,6 +4,10 @@ export type Store = {
   address: string;
   lat: number;
   lng: number;
+  storeId?: string;
+  kind?: string; // 直営 / FC / 新店/未登録 / 不明
+  phone?: string;
+  scale?: string; // 大 / 中 / 小
 };
 
 export type VisitRecord = {

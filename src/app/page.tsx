@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChainData, VisitRecord } from "@/lib/types";
+import type { ChainData, Store, VisitRecord } from "@/lib/types";
 import { loadChain, loadVisits, saveChain, clearChain, addVisit, saveVisits } from "@/lib/storage";
 import { parseCsv } from "@/lib/csv";
 import { Radar } from "./Radar";
@@ -294,7 +294,9 @@ function ImportPanel({
     <section className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center">
       <h2 className="mb-2 font-semibold">店舗リスト（CSV）を読み込む</h2>
       <p className="mb-4 text-xs text-gray-600">
-        必須カラム: <code>店舗名, 住所, 緯度, 経度</code>
+        必須: <code>店舗名, 住所, 緯度, 経度</code>
+        <br />
+        任意: <code>店舗ID, 種別, 電話番号, 店舗規模</code>
       </p>
       <label className="inline-block cursor-pointer rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white">
         CSVを選択
@@ -332,9 +334,24 @@ function ImportPanel({
 }
 
 type NearItem = {
-  store: { id: string; name: string; address: string };
+  store: Store;
   distance: number;
 };
+
+function KindBadge({ kind }: { kind?: string }) {
+  if (!kind) return null;
+  const style =
+    kind === "直営"
+      ? "bg-blue-100 text-blue-800 border-blue-300"
+      : kind === "FC"
+        ? "bg-amber-100 text-amber-800 border-amber-300"
+        : "bg-gray-100 text-gray-600 border-gray-300";
+  return (
+    <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${style}`}>
+      {kind}
+    </span>
+  );
+}
 
 function StampPanel({
   geo,
@@ -400,8 +417,26 @@ function StampPanel({
           <div className="text-xs text-gray-500">
             {alreadyVisited ? "最寄り店舗（訪問済）" : "最寄りの未訪問店舗"}
           </div>
-          <div className="mt-1 text-lg font-bold">{target.store.name}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="text-lg font-bold">{target.store.name}</span>
+            <KindBadge kind={target.store.kind} />
+            {target.store.scale && (
+              <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs text-gray-700">
+                規模 {target.store.scale}
+              </span>
+            )}
+          </div>
           <div className="text-sm text-gray-600">{target.store.address}</div>
+          {target.store.phone && (
+            <div className="mt-1 text-sm">
+              <a
+                href={`tel:${target.store.phone.replace(/[^0-9+]/g, "")}`}
+                className="text-blue-600 underline"
+              >
+                📞 {target.store.phone}
+              </a>
+            </div>
+          )}
           <div className="mt-2 text-sm">
             距離: <span className="font-mono">{formatDistance(target.distance)}</span>
           </div>
@@ -431,7 +466,7 @@ function StampBook({
   visits,
   storesWithDistance,
 }: {
-  stores: { id: string; name: string; address: string }[];
+  stores: Store[];
   visits: VisitRecord[];
   storesWithDistance: { store: { id: string }; distance: number }[];
 }) {
@@ -461,7 +496,10 @@ function StampBook({
               {visitedAt ? "✅" : "・"}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold">{s.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="truncate font-semibold">{s.name}</div>
+                <KindBadge kind={s.kind} />
+              </div>
               <div className="truncate text-xs text-gray-500">{s.address}</div>
               {visitedAt ? (
                 <div className="text-xs text-emerald-700">

@@ -19,6 +19,15 @@ const HEADER_MAP: Record<string, keyof Store> = {
   lng: "lng",
   lon: "lng",
   longitude: "lng",
+  店舗ID: "storeId",
+  storeId: "storeId",
+  種別: "kind",
+  kind: "kind",
+  電話番号: "phone",
+  phone: "phone",
+  tel: "phone",
+  店舗規模: "scale",
+  scale: "scale",
 };
 
 export function parseCsv(text: string): CsvParseResult {
@@ -64,6 +73,10 @@ export function parseCsv(text: string): CsvParseResult {
       address: mapped.address,
       lat: mapped.lat,
       lng: mapped.lng,
+      storeId: mapped.storeId || undefined,
+      kind: mapped.kind || undefined,
+      phone: mapped.phone || undefined,
+      scale: mapped.scale || undefined,
     });
   }
   return { ok: true, stores };
