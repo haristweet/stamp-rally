@@ -78,9 +78,14 @@ export default function HomePage() {
       stores: result.stores,
     };
     saveChain(data);
-    saveVisits([]);
+    // CSV に「訪問済」フラグが付いている店舗は自動でスタンプ済みにする
+    const now = new Date().toISOString();
+    const seeded: VisitRecord[] = result.stores
+      .filter((s) => s.visited)
+      .map((s) => ({ storeId: s.id, visitedAt: now }));
+    saveVisits(seeded);
     setChain(data);
-    setVisits([]);
+    setVisits(seeded);
   }, []);
 
   const handleFile = useCallback(

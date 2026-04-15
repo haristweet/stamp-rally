@@ -28,6 +28,8 @@ const HEADER_MAP: Record<string, keyof Store> = {
   tel: "phone",
   店舗規模: "scale",
   scale: "scale",
+  訪問済: "visited",
+  visited: "visited",
 };
 
 export function parseCsv(text: string): CsvParseResult {
@@ -52,8 +54,11 @@ export function parseCsv(text: string): CsvParseResult {
       if (target === "lat" || target === "lng") {
         const n = parseFloat(value);
         if (Number.isFinite(n)) mapped[target] = n;
+      } else if (target === "visited") {
+        const v = value?.trim().toLowerCase();
+        mapped.visited = v === "1" || v === "true" || v === "yes";
       } else {
-        mapped[target] = value?.trim();
+        (mapped as Record<string, string>)[target] = value?.trim();
       }
     }
     if (
@@ -77,6 +82,7 @@ export function parseCsv(text: string): CsvParseResult {
       kind: mapped.kind || undefined,
       phone: mapped.phone || undefined,
       scale: mapped.scale || undefined,
+      visited: mapped.visited || undefined,
     });
   }
   return { ok: true, stores };

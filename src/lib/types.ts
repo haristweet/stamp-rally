@@ -8,6 +8,7 @@ export type Store = {
   kind?: string; // 直営 / FC / 新店/未登録 / 不明
   phone?: string;
   scale?: string; // 大 / 中 / 小
+  visited?: boolean; // KML由来の訪問済フラグ
 };
 
 export type VisitRecord = {

@@ -50,6 +50,10 @@ for (const [, b] of blocks) {
   const pref = pick(b, "都道府県");
   if (!/東京|神奈川/.test(pref)) continue;
   const id = pick(b, "ID");
+  const styleUrl = (b.match(/<styleUrl>#?([^<]+)<\/styleUrl>/) || [])[1] || "";
+  // 青ピン (3F5BA9) = 訪問済 / 黄ピン (F4EB37) = 閉店
+  const closed = /F4EB37/.test(styleUrl);
+  const visited = /3F5BA9/.test(styleUrl);
   kmlIndex.set(normalizeName(name), {
     name,
     id,
@@ -57,6 +61,8 @@ for (const [, b] of blocks) {
     電話番号: pick(b, "電話番号"),
     店舗規模: pick(b, "店舗規模"),
     住所: pick(b, "住所"),
+    visited,
+    closed,
   });
 }
 console.log(`KML: 東京・神奈川 ${kmlIndex.size} 店舗`);
@@ -69,25 +75,36 @@ console.log(`CSV: ${rows.length} 店舗`);
 
 // --- マージ ------------------------------------------------------
 let matched = 0;
+let dropped = 0;
 const unmatched = [];
+const kept = [];
 for (const row of rows) {
   const key = normalizeName(row["店舗名"]);
   const meta = kmlIndex.get(key);
   if (meta) {
+    if (meta.closed) {
+      console.log(`  🚫 閉店として除外: ${row["店舗名"]}`);
+      dropped++;
+      continue;
+    }
     row["店舗ID"] = meta.id;
     row["種別"] = meta.種別;
     row["電話番号"] = meta.電話番号;
     row["店舗規模"] = meta.店舗規模;
+    row["訪問済"] = meta.visited ? "1" : "";
     matched++;
   } else {
     row["店舗ID"] = "";
     row["種別"] = "新店/未登録";
     row["電話番号"] = "";
     row["店舗規模"] = "";
+    row["訪問済"] = "";
     unmatched.push(row["店舗名"]);
   }
+  kept.push(row);
 }
 console.log(`✅ マッチ: ${matched}`);
+console.log(`🚫 閉店除外: ${dropped}`);
 console.log(`❓ 未マッチ: ${unmatched.length}`);
 for (const n of unmatched) console.log(`  - ${n}`);
 
@@ -101,12 +118,15 @@ const columns = [
   "種別",
   "電話番号",
   "店舗規模",
+  "訪問済",
 ];
-const out = Papa.unparse(rows, { columns });
+const out = Papa.unparse(kept, { columns });
 fs.writeFileSync(CSV, out + "\n");
 console.log(`\n📝 書き出し: ${CSV}`);
 
 // 種別集計
 const counts = {};
-for (const r of rows) counts[r["種別"]] = (counts[r["種別"]] || 0) + 1;
+for (const r of kept) counts[r["種別"]] = (counts[r["種別"]] || 0) + 1;
+const visitedCount = kept.filter((r) => r["訪問済"] === "1").length;
+console.log(`訪問済: ${visitedCount} / ${kept.length}`);
 console.log("種別集計:", counts);
