@@ -1,6 +1,9 @@
 // BOOKOFF 店舗一覧.md から東京都・神奈川県を抽出し、
 // Nominatim (OpenStreetMap) でジオコーディングして CSV を生成する。
-// 使い方: node scripts/geocode-bookoff.mjs
+//
+// 店舗一覧の .md はこのリポジトリに含まれないので、パスを渡して実行する:
+//   node scripts/geocode-bookoff.mjs path/to/bookoff_店舗一覧.md
+//   BOOKOFF_MD=path/to/bookoff_店舗一覧.md node scripts/geocode-bookoff.mjs
 //
 // Nominatim 利用規約: 1 req/s 以下、User-Agent 必須。
 // https://operations.osmfoundation.org/policies/nominatim/
@@ -8,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const SRC = "/Users/takeshi-hariu/claude/bookoff_店舗一覧.md";
+const SRC = process.argv[2] ?? process.env.BOOKOFF_MD;
 const OUT = path.resolve("public/bookoff-tokyo-kanagawa.csv");
 const CACHE = path.resolve("scripts/.geocode-cache.json");
 
@@ -74,6 +77,15 @@ function csvEscape(s) {
 }
 
 async function main() {
+  if (!SRC) {
+    console.error("店舗一覧の .md のパスを渡してください:");
+    console.error("  node scripts/geocode-bookoff.mjs path/to/bookoff_店舗一覧.md");
+    process.exit(1);
+  }
+  if (!fs.existsSync(SRC)) {
+    console.error(`店舗一覧が見つかりません: ${SRC}`);
+    process.exit(1);
+  }
   const md = fs.readFileSync(SRC, "utf8");
   const stores = extractStores(md);
   console.log(`抽出: ${stores.length} 店舗`);
