@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:stores": "node scripts/build-stores.mjs data/source/bookoff_full_2.csv data/source/bookoff_full_1.csv --coords data/source/coords.csv"
   },
   "dependencies": {
     "next": "16.2.3",

@@ -1,13 +1,15 @@
 export type Store = {
-  id: string; // `${name}__${lat}_${lng}` などでユニーク化
+  id: string; // 店舗ID（5桁）。旧データは `${name}__${lat}_${lng}`
   name: string;
   address: string;
   lat: number;
   lng: number;
   storeId?: string;
-  kind?: string; // 直営 / FC / 新店/未登録 / 不明
+  kind?: string; // 直営（2xxxx） / フランチャイズ（1xxxx）
   phone?: string;
-  scale?: string; // 大 / 中 / 小
+  scale?: string; // 大型店舗 / 中型店舗 / 小型店舗
+  hours?: string; // 営業時間
+  parking?: string; // 駐車場（「なし」「60台」「1,590台」など）
   visited?: boolean; // KML由来の訪問済フラグ
 };
 
@@ -17,7 +19,8 @@ export type VisitRecord = {
 };
 
 export type ChainData = {
-  chainName: string; // CSVファイル名などから推測
+  chainName: string;
   importedAt: string;
+  version?: number; // 店舗データの版。上がったら保存済みを捨ててCSVを読み直す
   stores: Store[];
 };

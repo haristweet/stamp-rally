@@ -28,6 +28,10 @@ const HEADER_MAP: Record<string, keyof Store> = {
   tel: "phone",
   店舗規模: "scale",
   scale: "scale",
+  営業時間: "hours",
+  hours: "hours",
+  駐車場: "parking",
+  parking: "parking",
   訪問済: "visited",
   visited: "visited",
 };
@@ -73,7 +77,8 @@ export function parseCsv(text: string): CsvParseResult {
       };
     }
     stores.push({
-      id: `${mapped.name}__${mapped.lat}_${mapped.lng}`,
+      // 店舗IDがあればそれを使う（データを差し替えても履歴が繋がる）
+      id: mapped.storeId || `${mapped.name}__${mapped.lat}_${mapped.lng}`,
       name: mapped.name,
       address: mapped.address,
       lat: mapped.lat,
@@ -82,6 +87,8 @@ export function parseCsv(text: string): CsvParseResult {
       kind: mapped.kind || undefined,
       phone: mapped.phone || undefined,
       scale: mapped.scale || undefined,
+      hours: mapped.hours || undefined,
+      parking: mapped.parking || undefined,
       visited: mapped.visited || undefined,
     });
   }

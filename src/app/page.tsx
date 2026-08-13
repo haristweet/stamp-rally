@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChainData, Store, VisitRecord } from "@/lib/types";
-import { loadChain, loadVisits, saveChain, clearChain, addVisit, saveVisits } from "@/lib/storage";
+import {
+  loadChain,
+  loadVisits,
+  saveChain,
+  clearChain,
+  addVisit,
+  saveVisits,
+  migrateVisits,
+} from "@/lib/storage";
 import { parseCsv } from "@/lib/csv";
 import { Radar } from "./Radar";
 import { STAMP_RADIUS_M, distanceMeters } from "@/lib/geo";
@@ -21,8 +29,10 @@ type GeoState =
   | { status: "error"; message: string };
 
 // 店舗リストはブックオフ固定（ユーザーによるCSV読み込みは行わない）
-const STORE_LIST_FILE = "bookoff-tokyo-kanagawa.csv";
-const STORE_LIST_LABEL = "BOOKOFF 東京・神奈川";
+const STORE_LIST_FILE = "bookoff-stores.csv";
+const STORE_LIST_LABEL = "BOOKOFF 全国";
+// 店舗データを差し替えたら上げる。保存済みが古ければCSVを読み直す
+const STORE_DATA_VERSION = 3;
 
 function geoErrorMessage(err: GeolocationPositionError): string {
   switch (err.code) {
@@ -81,17 +91,22 @@ export default function HomePage() {
       const data: ChainData = {
         chainName: STORE_LIST_LABEL,
         importedAt: new Date().toISOString(),
+        version: STORE_DATA_VERSION,
         stores: result.stores,
       };
       saveChain(data);
+      // 既に押したスタンプを新しい店舗IDに引き継ぐ
+      const carried = migrateVisits(result.stores, loadVisits());
+      const carriedIds = new Set(carried.map((v) => v.storeId));
       // CSV に「訪問済」フラグが付いている店舗は自動でスタンプ済みにする
       const now = new Date().toISOString();
       const seeded: VisitRecord[] = result.stores
-        .filter((s) => s.visited)
+        .filter((s) => s.visited && !carriedIds.has(s.id))
         .map((s) => ({ storeId: s.id, visitedAt: now }));
-      saveVisits(seeded);
+      const merged = [...carried, ...seeded];
+      saveVisits(merged);
       setChain(data);
-      setVisits(seeded);
+      setVisits(merged);
     } catch (e) {
       setLoadError(
         `店舗リストの読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
@@ -105,7 +120,7 @@ export default function HomePage() {
   useEffect(() => {
     const saved = loadChain();
     setReady(true);
-    if (saved) {
+    if (saved && saved.version === STORE_DATA_VERSION) {
       setChain(saved);
       setVisits(loadVisits());
       return;
@@ -319,7 +334,7 @@ function KindBadge({ kind }: { kind?: string }) {
   const style =
     kind === "直営"
       ? "bg-blue-100 text-blue-800 border-blue-300"
-      : kind === "FC"
+      : kind === "フランチャイズ"
         ? "bg-amber-100 text-amber-800 border-amber-300"
         : "bg-gray-100 text-gray-600 border-gray-300";
   return (
@@ -403,19 +418,35 @@ function StampPanel({
             )}
           </div>
           <div className="text-sm text-gray-600">{target.store.address}</div>
-          {target.store.phone && (
-            <div className="mt-1 text-sm">
-              <a
-                href={`tel:${target.store.phone.replace(/[^0-9+]/g, "")}`}
-                className="text-blue-600 underline"
-              >
-                📞 {target.store.phone}
-              </a>
-            </div>
-          )}
-          <div className="mt-2 text-sm">
-            距離: <span className="font-mono">{formatDistance(target.distance)}</span>
-          </div>
+          <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-sm">
+            {target.store.hours && (
+              <>
+                <dt className="text-gray-500">営業時間</dt>
+                <dd>{target.store.hours}</dd>
+              </>
+            )}
+            {target.store.parking && (
+              <>
+                <dt className="text-gray-500">駐車場</dt>
+                <dd>{target.store.parking}</dd>
+              </>
+            )}
+            <dt className="text-gray-500">電話番号</dt>
+            <dd>
+              {isDialable(target.store.phone) ? (
+                <a
+                  href={`tel:${target.store.phone!.replace(/[^0-9+]/g, "")}`}
+                  className="text-blue-600 underline"
+                >
+                  {target.store.phone}
+                </a>
+              ) : (
+                <span className="text-gray-500">{target.store.phone || "—"}</span>
+              )}
+            </dd>
+            <dt className="text-gray-500">距離</dt>
+            <dd className="font-mono">{formatDistance(target.distance)}</dd>
+          </dl>
           <button
             disabled={!inRange || alreadyVisited}
             onClick={() => onStamp(target.store.id)}
@@ -497,6 +528,11 @@ function StampBook({
       })}
     </ul>
   );
+}
+
+// 「未定」や空欄が入っていることがあるので、数字を含むものだけ電話リンクにする
+function isDialable(phone: string | undefined): boolean {
+  return !!phone && /[0-9]/.test(phone);
 }
 
 function shortName(name: string): string {
