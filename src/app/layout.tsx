@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "勝手にスタンプラリー",
-  description: "自分で用意した店舗リストで遊ぶGPSスタンプラリー",
+  title: "非公式ブックオフスタンプラリー",
+  description: "ブックオフスタンプラリー",
 };
 
 export const viewport = {

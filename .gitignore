@@ -25,6 +25,9 @@
 *.pem
 .claude/
 scripts/.geocode-cache.json
+scripts/.unmatched-stores.txt
+# Googleマイマップの書き出し（個人の訪問記録を含む。public/ 配下はWeb公開される）
+public/*.kmz
 
 # debug
 npm-debug.log*

@@ -20,6 +20,10 @@ type GeoState =
     }
   | { status: "error"; message: string };
 
+// 店舗リストはブックオフ固定（ユーザーによるCSV読み込みは行わない）
+const STORE_LIST_FILE = "bookoff-tokyo-kanagawa.csv";
+const STORE_LIST_LABEL = "BOOKOFF 東京・神奈川";
+
 function geoErrorMessage(err: GeolocationPositionError): string {
   switch (err.code) {
     case err.PERMISSION_DENIED:
@@ -37,15 +41,10 @@ export default function HomePage() {
   const [chain, setChain] = useState<ChainData | null>(null);
   const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [geo, setGeo] = useState<GeoState>({ status: "idle" });
-  const [importError, setImportError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<"stamp" | "radar" | "list">("stamp");
   const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setChain(loadChain());
-    setVisits(loadVisits());
-    setReady(true);
-  }, []);
 
   const visitedIds = useMemo(() => new Set(visits.map((v) => v.storeId)), [visits]);
 
@@ -66,54 +65,53 @@ export default function HomePage() {
     [storesWithDistance, visitedIds]
   );
 
-  const loadCsvText = useCallback((text: string, chainName: string) => {
-    const result = parseCsv(text);
-    if (!result.ok) {
-      setImportError(result.error);
-      return;
+  // 同梱の店舗リストCSVを取り込む
+  const loadStoreList = useCallback(async () => {
+    setLoadError(null);
+    setLoading(true);
+    try {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+      const res = await fetch(`${base}/${STORE_LIST_FILE}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = parseCsv(await res.text());
+      if (!result.ok) {
+        setLoadError(result.error);
+        return;
+      }
+      const data: ChainData = {
+        chainName: STORE_LIST_LABEL,
+        importedAt: new Date().toISOString(),
+        stores: result.stores,
+      };
+      saveChain(data);
+      // CSV に「訪問済」フラグが付いている店舗は自動でスタンプ済みにする
+      const now = new Date().toISOString();
+      const seeded: VisitRecord[] = result.stores
+        .filter((s) => s.visited)
+        .map((s) => ({ storeId: s.id, visitedAt: now }));
+      saveVisits(seeded);
+      setChain(data);
+      setVisits(seeded);
+    } catch (e) {
+      setLoadError(
+        `店舗リストの読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
+      );
+    } finally {
+      setLoading(false);
     }
-    const data: ChainData = {
-      chainName,
-      importedAt: new Date().toISOString(),
-      stores: result.stores,
-    };
-    saveChain(data);
-    // CSV に「訪問済」フラグが付いている店舗は自動でスタンプ済みにする
-    const now = new Date().toISOString();
-    const seeded: VisitRecord[] = result.stores
-      .filter((s) => s.visited)
-      .map((s) => ({ storeId: s.id, visitedAt: now }));
-    saveVisits(seeded);
-    setChain(data);
-    setVisits(seeded);
   }, []);
 
-  const handleFile = useCallback(
-    async (file: File) => {
-      setImportError(null);
-      const text = await file.text();
-      loadCsvText(text, file.name.replace(/\.csv$/i, ""));
-    },
-    [loadCsvText]
-  );
-
-  const handleUsePreset = useCallback(
-    async (file: string, label: string) => {
-      setImportError(null);
-      try {
-        const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-        const res = await fetch(`${base}/${file}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        loadCsvText(text, label);
-      } catch (e) {
-        setImportError(
-          `読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
-    },
-    [loadCsvText]
-  );
+  // 初回起動時は店舗リストを自動で読み込む（保存済みならそれを使う）
+  useEffect(() => {
+    const saved = loadChain();
+    setReady(true);
+    if (saved) {
+      setChain(saved);
+      setVisits(loadVisits());
+      return;
+    }
+    void loadStoreList();
+  }, [loadStoreList]);
 
   const watchIdRef = useRef<number | null>(null);
 
@@ -155,11 +153,12 @@ export default function HomePage() {
   }, []);
 
   const handleReset = useCallback(() => {
-    if (!confirm("店舗リストとスタンプ履歴をすべて削除します。よろしいですか？")) return;
+    if (!confirm("スタンプ履歴をすべて削除します。よろしいですか？")) return;
     clearChain();
     setChain(null);
     setVisits([]);
-  }, []);
+    void loadStoreList();
+  }, [loadStoreList]);
 
   const totalCount = chain?.stores.length ?? 0;
   const visitedCount = visits.length;
@@ -172,19 +171,14 @@ export default function HomePage() {
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-4 pt-4 pb-24">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold">勝手にスタンプラリー</h1>
-        {chain && (
-          <p className="text-sm text-gray-600">
-            ターゲット: <span className="font-semibold">{chain.chainName}</span>
-          </p>
-        )}
+        <h1 className="text-2xl font-bold">非公式ブックオフスタンプラリー</h1>
       </header>
 
       {!chain ? (
-        <ImportPanel
-          onFile={handleFile}
-          onUsePreset={handleUsePreset}
-          error={importError}
+        <StoreListStatus
+          loading={loading}
+          error={loadError}
+          onRetry={loadStoreList}
         />
       ) : (
         <>
@@ -256,7 +250,7 @@ export default function HomePage() {
 
           <div className="mt-8 border-t pt-4">
             <button onClick={handleReset} className="text-sm text-red-600 underline">
-              店舗リストをリセット
+              スタンプ履歴をリセット
             </button>
           </div>
         </>
@@ -286,54 +280,31 @@ function TabButton({
   );
 }
 
-function ImportPanel({
-  onFile,
-  onUsePreset,
+function StoreListStatus({
+  loading,
   error,
+  onRetry,
 }: {
-  onFile: (file: File) => void;
-  onUsePreset: (file: string, label: string) => void;
+  loading: boolean;
   error: string | null;
+  onRetry: () => void;
 }) {
+  if (error) {
+    return (
+      <section className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+        <p className="text-sm text-red-700">{error}</p>
+        <button
+          onClick={onRetry}
+          className="mt-4 rounded-full bg-red-600 px-6 py-2 text-sm font-semibold text-white"
+        >
+          再読み込み
+        </button>
+      </section>
+    );
+  }
   return (
-    <section className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center">
-      <h2 className="mb-2 font-semibold">店舗リスト（CSV）を読み込む</h2>
-      <p className="mb-4 text-xs text-gray-600">
-        必須: <code>店舗名, 住所, 緯度, 経度</code>
-        <br />
-        任意: <code>店舗ID, 種別, 電話番号, 店舗規模</code>
-      </p>
-      <label className="inline-block cursor-pointer rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white">
-        CSVを選択
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onFile(f);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      <div className="mt-4 text-xs text-gray-500">または プリセットから選ぶ</div>
-      <div className="mt-2 flex flex-col gap-2">
-        <button
-          onClick={() => onUsePreset("sample-stores.csv", "サンプル（首都圏10駅）")}
-          className="rounded-full border border-gray-400 px-4 py-2 text-sm text-gray-700"
-        >
-          サンプル（首都圏10駅）
-        </button>
-        <button
-          onClick={() =>
-            onUsePreset("bookoff-tokyo-kanagawa.csv", "BOOKOFF 東京・神奈川")
-          }
-          className="rounded-full border border-orange-400 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800"
-        >
-          BOOKOFF 東京・神奈川
-        </button>
-      </div>
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+    <section className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+      {loading ? "店舗リストを読み込み中…" : "店舗リストを準備しています…"}
     </section>
   );
 }
