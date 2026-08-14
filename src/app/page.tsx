@@ -14,6 +14,7 @@ import { parseCsv } from "@/lib/csv";
 import Link from "next/link";
 import { Radar } from "./Radar";
 import { STAMP_RADIUS_M, distanceMeters } from "@/lib/geo";
+import { fetchNews, type NewsItem } from "@/lib/news";
 
 type GeoState =
   | { status: "idle" }
@@ -243,6 +244,8 @@ export default function HomePage() {
               />
             </div>
           </section>
+
+          <NewsBanner />
 
           <nav className="mb-3 flex gap-2">
             <TabButton active={tab === "stamp"} onClick={() => setTab("stamp")}>
@@ -667,6 +670,36 @@ function StampBook({
         </ul>
       )}
     </section>
+  );
+}
+
+// 最新の出店情報を1件だけ出す。詳しくは /news/ へ
+function NewsBanner() {
+  const [latest, setLatest] = useState<NewsItem | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchNews().then((result) => {
+      if (alive) setLatest(result.items[0] ?? null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!latest) return null;
+
+  return (
+    <Link
+      href="/news"
+      className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2"
+    >
+      <span className="shrink-0 rounded-full bg-stamp-weak px-2 py-0.5 text-xs font-semibold text-stamp-ink">
+        {latest.renewal ? "リニューアル" : "新店"}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">{latest.storeName}</span>
+      <span className="shrink-0 text-xs text-ink-faint">{latest.date}</span>
+    </Link>
   );
 }
 
