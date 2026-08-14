@@ -387,12 +387,34 @@ function StampPanel({
   onStamp: (id: string) => void;
 }) {
   const hasFix = geo.status === "ok" || geo.status === "watching";
-  const target = nearest ?? nearestAny;
-  const inRange = target ? target.distance <= STAMP_RADIUS_M : false;
-  const alreadyVisited = target ? visitedIds.has(target.store.id) : false;
   const fix = hasFix
     ? (geo as Extract<GeoState, { status: "ok" | "watching" }>)
     : null;
+
+  // 1枚目は最寄り（訪問済でも出す）、2枚目は最寄りの未踏。
+  // 最寄りがそのまま未踏なら同じ内容になるので1枚だけにする。
+  const cards: { label: string; item: NearItem }[] = [];
+  if (nearestAny) cards.push({ label: "最寄り", item: nearestAny });
+  if (nearest && nearest.store.id !== nearestAny?.store.id) {
+    cards.push({ label: "最寄りの未踏", item: nearest });
+  }
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+
+  const handleScroll = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    setPage(Math.round(el.scrollLeft / el.clientWidth));
+  };
+
+  const scrollToCard = (i: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    // behavior:"smooth" は環境によっては無効化されて動かないので指定しない
+    el.scrollTo({ left: i * el.clientWidth });
+    setPage(i);
+  };
 
   return (
     <section>
@@ -426,68 +448,144 @@ function StampPanel({
         </p>
       )}
 
-      {fix && target && (
-        <div className="rounded-lg border p-4">
-          <div className="text-xs text-ink-weak">
-            {alreadyVisited ? "最寄り店舗（訪問済）" : "最寄りの未訪問店舗"}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-lg font-bold">{shortName(target.store.name)}</span>
-            <KindBadge kind={target.store.kind} />
-            {target.store.scale && (
-              <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink">
-                規模 {target.store.scale}
-              </span>
-            )}
-          </div>
-          <div className="text-sm text-ink-weak">{target.store.address}</div>
-          <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-sm">
-            {target.store.hours && (
-              <>
-                <dt className="text-ink-weak">営業時間</dt>
-                <dd>{target.store.hours}</dd>
-              </>
-            )}
-            {target.store.parking && (
-              <>
-                <dt className="text-ink-weak">駐車場</dt>
-                <dd>{target.store.parking}</dd>
-              </>
-            )}
-            <dt className="text-ink-weak">電話番号</dt>
-            <dd>
-              {isDialable(target.store.phone) ? (
-                <a
-                  href={`tel:${target.store.phone!.replace(/[^0-9+]/g, "")}`}
-                  className="text-accent underline"
-                >
-                  {target.store.phone}
-                </a>
-              ) : (
-                <span className="text-ink-weak">{target.store.phone || "—"}</span>
-              )}
-            </dd>
-            <dt className="text-ink-weak">距離</dt>
-            <dd className="font-mono">{formatDistance(target.distance)}</dd>
-          </dl>
-          <button
-            disabled={!inRange || alreadyVisited}
-            onClick={() => onStamp(target.store.id)}
-            className={`mt-4 w-full rounded-lg py-3 font-semibold transition ${
-              !inRange || alreadyVisited
-                ? "bg-disabled text-on-invert"
-                : "bg-stamp text-on-stamp active:opacity-90"
-            }`}
+      {fix && cards.length > 0 && (
+        <>
+          {/* 1枚目=最寄り、2枚目=最寄りの未踏。指で滑らせて切り替える */}
+          <div
+            ref={trackRef}
+            onScroll={handleScroll}
+            className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {alreadyVisited
-              ? "スタンプ獲得済み"
-              : inRange
-                ? "スタンプを押す！"
-                : `半径${STAMP_RADIUS_M}m以内で活性化`}
-          </button>
-        </div>
+            {cards.map((c) => (
+              <div key={c.label} className="w-full shrink-0 snap-start">
+                <StoreCard
+                  label={c.label}
+                  item={c.item}
+                  visited={visitedIds.has(c.item.store.id)}
+                  onStamp={onStamp}
+                />
+              </div>
+            ))}
+          </div>
+
+          {cards.length > 1 && (
+            <div className="mt-2 flex justify-center gap-2">
+              {cards.map((c, i) => (
+                <button
+                  key={c.label}
+                  aria-label={`${c.label}を表示`}
+                  onClick={() => scrollToCard(i)}
+                  className={`h-2 rounded-full transition-all ${
+                    i === page ? "w-5 bg-accent" : "w-2 bg-line"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
+  );
+}
+
+// Googleマップは住所ではなく座標を渡す。公式ピンなので店の位置に正確に落ちる
+function mapUrl(store: Store): string {
+  return `https://www.google.com/maps/search/?api=1&query=${store.lat},${store.lng}`;
+}
+
+function StoreNameLink({
+  store,
+  className,
+}: {
+  store: Store;
+  className?: string;
+}) {
+  return (
+    <a
+      href={mapUrl(store)}
+      target="_blank"
+      rel="noopener"
+      className={`text-accent underline decoration-accent/40 underline-offset-2 ${className ?? ""}`}
+    >
+      {shortName(store.name)}
+    </a>
+  );
+}
+
+function StoreCard({
+  label,
+  item,
+  visited,
+  onStamp,
+}: {
+  label: string;
+  item: NearItem;
+  visited: boolean;
+  onStamp: (id: string) => void;
+}) {
+  const store = item.store;
+  const inRange = item.distance <= STAMP_RADIUS_M;
+  return (
+    <div className="h-full rounded-lg border border-line p-4">
+      <div className="text-xs text-ink-weak">
+        {label}
+        {visited && "（訪問済）"}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <StoreNameLink store={store} className="text-lg font-bold" />
+        <KindBadge kind={store.kind} />
+        {store.scale && (
+          <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink">
+            {store.scale}
+          </span>
+        )}
+      </div>
+      <div className="text-sm text-ink-weak">{store.address}</div>
+      <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-sm">
+        {store.hours && (
+          <>
+            <dt className="text-ink-weak">営業時間</dt>
+            <dd>{store.hours}</dd>
+          </>
+        )}
+        {store.parking && (
+          <>
+            <dt className="text-ink-weak">駐車場</dt>
+            <dd>{store.parking}</dd>
+          </>
+        )}
+        <dt className="text-ink-weak">電話番号</dt>
+        <dd>
+          {isDialable(store.phone) ? (
+            <a
+              href={`tel:${store.phone!.replace(/[^0-9+]/g, "")}`}
+              className="text-accent underline"
+            >
+              {store.phone}
+            </a>
+          ) : (
+            <span className="text-ink-weak">{store.phone || "—"}</span>
+          )}
+        </dd>
+        <dt className="text-ink-weak">距離</dt>
+        <dd className="font-mono">{formatDistance(item.distance)}</dd>
+      </dl>
+      <button
+        disabled={!inRange || visited}
+        onClick={() => onStamp(store.id)}
+        className={`mt-4 w-full rounded-lg py-3 font-semibold transition ${
+          !inRange || visited
+            ? "bg-disabled text-on-invert"
+            : "bg-stamp text-on-stamp active:opacity-90"
+        }`}
+      >
+        {visited
+          ? "スタンプ獲得済み"
+          : inRange
+            ? "スタンプを押す！"
+            : `半径${STAMP_RADIUS_M}m以内で活性化`}
+      </button>
+    </div>
   );
 }
 
@@ -751,8 +849,8 @@ function StoreRow({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <div className="font-semibold leading-tight break-words">
-            {shortName(store.name)}
+          <div className="leading-tight font-semibold break-words">
+            <StoreNameLink store={store} />
           </div>
           <KindBadge kind={store.kind} />
         </div>
