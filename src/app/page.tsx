@@ -684,7 +684,20 @@ function StampBook({
   // 並び替えや絞り込みを変えたら先頭に戻す。
   // そのままだと途中の位置に着地して、並びが変わっていないように見えるため
   const topRef = useRef<HTMLDivElement>(null);
-  const backToTop = () => topRef.current?.scrollIntoView({ block: "start" });
+  // 並びを変えたらリストの先頭に戻す。そのままだと途中の位置に着地して、
+  // 並びが変わっていないように見えるため。
+  // 並び替え後は高さが変わるので、描画前と描画後の2回動かす
+  // （requestAnimationFrame は非表示タブで止まるため使わない）。
+  const backToTop = () => {
+    const move = () => {
+      const el = topRef.current;
+      if (!el) return;
+      const y = el.getBoundingClientRect().top + window.scrollY - 8;
+      window.scrollTo(0, Math.max(0, y));
+    };
+    move();
+    setTimeout(move, 0);
+  };
 
   const toggle = (pref: string) => {
     const next = new Set(open);
@@ -696,7 +709,7 @@ function StampBook({
 
   return (
     <section>
-      <div ref={topRef} className="mb-2 flex gap-1 scroll-mt-2">
+      <div ref={topRef} className="mb-2 flex gap-1 [overflow-anchor:none]">
         <SortButton
           active={sort === "pref"}
           onClick={() => {
