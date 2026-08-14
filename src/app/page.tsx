@@ -633,9 +633,14 @@ function StampBook({
     const list = [...shown];
     if (sort === "near") return list.sort(byDistanceThenName);
     return list.sort((a, b) => {
-      const av = visitMap.has(a.id) ? 0 : 1;
-      const bv = visitMap.has(b.id) ? 0 : 1;
-      if (av !== bv) return av - bv;
+      const va = visitMap.get(a.id);
+      const vb = visitMap.get(b.id);
+      if (!va !== !vb) return va ? -1 : 1;
+      // 訪問済どうしは訪問日の古い順（最初に行った店が上）
+      if (va && vb) {
+        const d = Date.parse(va) - Date.parse(vb);
+        if (d !== 0) return d;
+      }
       return byDistanceThenName(a, b);
     });
   }, [shown, sort, visitMap, byDistanceThenName]);
@@ -676,6 +681,11 @@ function StampBook({
     ? opened
     : new Set(nearestPref ? [nearestPref] : []);
 
+  // 並び替えや絞り込みを変えたら先頭に戻す。
+  // そのままだと途中の位置に着地して、並びが変わっていないように見えるため
+  const topRef = useRef<HTMLDivElement>(null);
+  const backToTop = () => topRef.current?.scrollIntoView({ block: "start" });
+
   const toggle = (pref: string) => {
     const next = new Set(open);
     if (next.has(pref)) next.delete(pref);
@@ -686,14 +696,32 @@ function StampBook({
 
   return (
     <section>
-      <div className="mb-2 flex gap-1">
-        <SortButton active={sort === "pref"} onClick={() => setSort("pref")}>
+      <div ref={topRef} className="mb-2 flex gap-1 scroll-mt-2">
+        <SortButton
+          active={sort === "pref"}
+          onClick={() => {
+            setSort("pref");
+            backToTop();
+          }}
+        >
           都道府県順
         </SortButton>
-        <SortButton active={sort === "near"} onClick={() => setSort("near")}>
+        <SortButton
+          active={sort === "near"}
+          onClick={() => {
+            setSort("near");
+            backToTop();
+          }}
+        >
           近い順
         </SortButton>
-        <SortButton active={sort === "visited"} onClick={() => setSort("visited")}>
+        <SortButton
+          active={sort === "visited"}
+          onClick={() => {
+            setSort("visited");
+            backToTop();
+          }}
+        >
           訪問済が先
         </SortButton>
       </div>
@@ -701,7 +729,10 @@ function StampBook({
         <input
           type="checkbox"
           checked={onlyUnvisited}
-          onChange={(e) => setOnlyUnvisited(e.target.checked)}
+          onChange={(e) => {
+            setOnlyUnvisited(e.target.checked);
+            backToTop();
+          }}
           className="h-4 w-4"
         />
         未訪問のみ表示（{stores.length - visitMap.size} 店）
