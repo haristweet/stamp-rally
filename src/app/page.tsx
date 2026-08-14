@@ -282,11 +282,6 @@ export default function HomePage() {
             />
           )}
 
-          <div className="mt-8 border-t pt-4 text-center">
-            <Link href="/settings" className="text-sm text-gray-600 underline">
-              記録の持ち運び・リセットは「設定」へ
-            </Link>
-          </div>
         </>
       )}
     </main>
