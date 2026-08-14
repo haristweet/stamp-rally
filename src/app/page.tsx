@@ -35,6 +35,25 @@ type GeoState =
     }
   | { status: "error"; message: string };
 
+// スタンプ帳の並び順
+type SortMode = "pref" | "near" | "visited";
+
+// JISコード順（北海道→沖縄）。住所の先頭がこのいずれかで始まる
+const PREFECTURES = [
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+  "岐阜県", "静岡県", "愛知県", "三重県",
+  "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+  "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県",
+  "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+];
+
+function prefectureOf(address: string): string {
+  return PREFECTURES.find((p) => address.startsWith(p)) ?? "その他";
+}
+
 // 店舗リストはブックオフ固定（ユーザーによるCSV読み込みは行わない）
 const STORE_LIST_FILE = "bookoff-stores.csv";
 const STORE_LIST_LABEL = "BOOKOFF 全国";
@@ -493,56 +512,235 @@ function StampBook({
   visits: VisitRecord[];
   storesWithDistance: { store: { id: string }; distance: number }[];
 }) {
-  const visitMap = new Map(visits.map((v) => [v.storeId, v.visitedAt]));
-  const distMap = new Map(storesWithDistance.map((x) => [x.store.id, x.distance]));
-  const sorted = [...stores].sort((a, b) => {
-    const av = visitMap.has(a.id) ? 0 : 1;
-    const bv = visitMap.has(b.id) ? 0 : 1;
-    if (av !== bv) return av - bv;
-    const da = distMap.get(a.id);
-    const db = distMap.get(b.id);
-    if (da !== undefined && db !== undefined) return da - db;
-    if (da !== undefined) return -1;
-    if (db !== undefined) return 1;
-    return a.name.localeCompare(b.name, "ja");
-  });
+  const [sort, setSort] = useState<SortMode>("pref");
+  const [onlyUnvisited, setOnlyUnvisited] = useState(false);
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const [touched, setTouched] = useState(false);
+
+  const visitMap = useMemo(
+    () => new Map(visits.map((v) => [v.storeId, v.visitedAt])),
+    [visits]
+  );
+  const distMap = useMemo(
+    () => new Map(storesWithDistance.map((x) => [x.store.id, x.distance])),
+    [storesWithDistance]
+  );
+
+  const shown = useMemo(
+    () => (onlyUnvisited ? stores.filter((s) => !visitMap.has(s.id)) : stores),
+    [stores, onlyUnvisited, visitMap]
+  );
+
+  const byDistanceThenName = useCallback(
+    (a: Store, b: Store) => {
+      const da = distMap.get(a.id);
+      const db = distMap.get(b.id);
+      if (da !== undefined && db !== undefined) return da - db;
+      if (da !== undefined) return -1;
+      if (db !== undefined) return 1;
+      return a.name.localeCompare(b.name, "ja");
+    },
+    [distMap]
+  );
+
+  const flat = useMemo(() => {
+    const list = [...shown];
+    if (sort === "near") return list.sort(byDistanceThenName);
+    return list.sort((a, b) => {
+      const av = visitMap.has(a.id) ? 0 : 1;
+      const bv = visitMap.has(b.id) ? 0 : 1;
+      if (av !== bv) return av - bv;
+      return byDistanceThenName(a, b);
+    });
+  }, [shown, sort, visitMap, byDistanceThenName]);
+
+  // 都道府県ごとの内訳。件数は絞り込みに関わらず実数を出す
+  const groups = useMemo(() => {
+    const all = new Map<string, Store[]>();
+    for (const s of stores) {
+      const p = prefectureOf(s.address);
+      const arr = all.get(p);
+      if (arr) arr.push(s);
+      else all.set(p, [s]);
+    }
+    const visible = new Set(shown.map((s) => s.id));
+    return PREFECTURES.filter((p) => all.has(p)).map((p) => {
+      const list = all.get(p)!;
+      return {
+        pref: p,
+        total: list.length,
+        visited: list.filter((s) => visitMap.has(s.id)).length,
+        stores: list
+          .filter((s) => visible.has(s.id))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      };
+    });
+  }, [stores, shown, visitMap]);
+
+  // 現在地の都道府県だけ最初から開いておく（自分で開閉したあとは触らない）
+  const nearestPref = useMemo(() => {
+    const nearest = storesWithDistance[0];
+    if (!nearest) return null;
+    const s = stores.find((x) => x.id === nearest.store.id);
+    return s ? prefectureOf(s.address) : null;
+  }, [storesWithDistance, stores]);
+
+  // 自分で開閉するまでは現在地の県だけ開いた状態にする
+  const open = touched
+    ? opened
+    : new Set(nearestPref ? [nearestPref] : []);
+
+  const toggle = (pref: string) => {
+    const next = new Set(open);
+    if (next.has(pref)) next.delete(pref);
+    else next.add(pref);
+    setTouched(true);
+    setOpened(next);
+  };
 
   return (
-    <ul className="divide-y rounded-lg border">
-      {sorted.map((s) => {
-        const visitedAt = visitMap.get(s.id);
-        const dist = distMap.get(s.id);
-        return (
-          <li key={s.id} className="flex items-center gap-3 p-3">
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
-                visitedAt
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-gray-100 text-gray-400"
-              }`}
-            >
-              {visitedAt ? "✅" : "・"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <div className="font-semibold leading-tight break-words">
-                  {shortName(s.name)}
-                </div>
-                <KindBadge kind={s.kind} />
+    <section>
+      <div className="mb-2 flex gap-1">
+        <SortButton active={sort === "pref"} onClick={() => setSort("pref")}>
+          都道府県順
+        </SortButton>
+        <SortButton active={sort === "near"} onClick={() => setSort("near")}>
+          近い順
+        </SortButton>
+        <SortButton active={sort === "visited"} onClick={() => setSort("visited")}>
+          訪問済が先
+        </SortButton>
+      </div>
+      <label className="mb-3 flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={onlyUnvisited}
+          onChange={(e) => setOnlyUnvisited(e.target.checked)}
+          className="h-4 w-4"
+        />
+        未訪問のみ表示（{stores.length - visitMap.size} 店）
+      </label>
+
+      {shown.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+          該当する店舗がありません
+        </p>
+      ) : sort === "pref" ? (
+        <div className="space-y-2">
+          {groups.map((g) => {
+            const isOpen = open.has(g.pref);
+            const done = g.visited === g.total;
+            return (
+              <div key={g.pref} className="overflow-hidden rounded-lg border">
+                <button
+                  onClick={() => toggle(g.pref)}
+                  className={`sticky top-0 z-10 flex w-full items-center justify-between px-3 py-2 text-left ${
+                    done ? "bg-emerald-50" : "bg-gray-50"
+                  }`}
+                >
+                  <span className="font-semibold">
+                    {g.pref}
+                    {g.stores.length === 0 && (
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        （表示なし）
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className={done ? "text-emerald-700" : "text-gray-600"}>
+                      {g.visited} / {g.total}
+                    </span>
+                    <span className="text-gray-400">{isOpen ? "▲" : "▼"}</span>
+                  </span>
+                </button>
+                {isOpen && g.stores.length > 0 && (
+                  <ul className="divide-y border-t">
+                    {g.stores.map((s) => (
+                      <StoreRow
+                        key={s.id}
+                        store={s}
+                        visitedAt={visitMap.get(s.id)}
+                        distance={distMap.get(s.id)}
+                      />
+                    ))}
+                  </ul>
+                )}
               </div>
-              <div className="truncate text-xs text-gray-500">{s.address}</div>
-              {visitedAt ? (
-                <div className="text-xs text-emerald-700">
-                  訪問: {new Date(visitedAt).toLocaleString("ja-JP")}
-                </div>
-              ) : dist !== undefined ? (
-                <div className="text-xs text-gray-500">距離 {formatDistance(dist)}</div>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            );
+          })}
+        </div>
+      ) : (
+        <ul className="divide-y rounded-lg border">
+          {flat.map((s) => (
+            <StoreRow
+              key={s.id}
+              store={s}
+              visitedAt={visitMap.get(s.id)}
+              distance={distMap.get(s.id)}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SortButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 rounded-full py-1.5 text-xs font-semibold transition ${
+        active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StoreRow({
+  store,
+  visitedAt,
+  distance,
+}: {
+  store: Store;
+  visitedAt: string | undefined;
+  distance: number | undefined;
+}) {
+  return (
+    <li className="flex items-center gap-3 p-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
+          visitedAt ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+        }`}
+      >
+        {visitedAt ? "✅" : "・"}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="font-semibold leading-tight break-words">
+            {shortName(store.name)}
+          </div>
+          <KindBadge kind={store.kind} />
+        </div>
+        <div className="truncate text-xs text-gray-500">{store.address}</div>
+        {visitedAt ? (
+          <div className="text-xs text-emerald-700">
+            訪問: {new Date(visitedAt).toLocaleDateString("ja-JP")}
+          </div>
+        ) : distance !== undefined ? (
+          <div className="text-xs text-gray-500">距離 {formatDistance(distance)}</div>
+        ) : null}
+      </div>
+    </li>
   );
 }
 
