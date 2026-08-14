@@ -198,11 +198,17 @@ export default function HomePage() {
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-4 pt-4 pb-24">
       <header className="mb-4 flex items-start justify-between gap-2">
-        <h1 className="text-2xl font-bold">非公式ブックオフスタンプラリー</h1>
+        {/* 「非公式」は但し書きなので小さく載せる。1行に収めるための措置でもある */}
+        <div className="min-w-0">
+          <div className="text-xs font-semibold tracking-wide text-ink-weak">
+            非公式
+          </div>
+          <h1 className="text-2xl font-bold">ブックオフスタンプラリー</h1>
+        </div>
         <Link
           href="/settings"
           aria-label="設定"
-          className="shrink-0 rounded-full border border-gray-300 px-3 py-1.5 text-lg leading-none text-gray-600"
+          className="shrink-0 rounded-full border border-line px-3 py-1.5 text-lg leading-none text-ink-weak"
         >
           ⚙
         </Link>
@@ -216,21 +222,21 @@ export default function HomePage() {
         />
       ) : (
         <>
-          <section className="mb-4 rounded-lg bg-blue-50 p-4">
+          <section className="mb-4 rounded-lg bg-accent-weak p-4">
             <div className="flex items-baseline justify-between">
               <div>
-                <div className="text-xs text-blue-700">全国制覇まで</div>
-                <div className="text-3xl font-bold text-blue-900">
+                <div className="text-xs text-accent-ink">全国制覇まで</div>
+                <div className="text-3xl font-bold text-accent-ink">
                   あと {remaining} <span className="text-base">店舗</span>
                 </div>
               </div>
-              <div className="text-right text-sm text-blue-800">
+              <div className="text-right text-sm text-accent-ink">
                 {visitedCount} / {totalCount}
               </div>
             </div>
-            <div className="mt-3 h-2 w-full rounded bg-blue-200">
+            <div className="mt-3 h-2 w-full rounded bg-accent-mid">
               <div
-                className="h-2 rounded bg-blue-600 transition-all"
+                className="h-2 rounded bg-accent transition-all"
                 style={{
                   width: totalCount === 0 ? "0%" : `${(visitedCount / totalCount) * 100}%`,
                 }}
@@ -259,7 +265,7 @@ export default function HomePage() {
                 visitedIds={visitedIds}
               />
             ) : (
-              <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+              <p className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-ink-weak">
                 先に「スタンプ」タブで位置情報の追跡を開始してください
               </p>
             )
@@ -301,7 +307,7 @@ function TabButton({
     <button
       onClick={onClick}
       className={`flex-1 rounded-full py-2 text-sm font-semibold transition ${
-        active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"
+        active ? "bg-invert text-on-invert" : "bg-mute text-ink"
       }`}
     >
       {children}
@@ -320,11 +326,11 @@ function StoreListStatus({
 }) {
   if (error) {
     return (
-      <section className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-        <p className="text-sm text-red-700">{error}</p>
+      <section className="rounded-lg border border-danger-line bg-danger-weak p-6 text-center">
+        <p className="text-sm text-danger-ink">{error}</p>
         <button
           onClick={onRetry}
-          className="mt-4 rounded-full bg-red-600 px-6 py-2 text-sm font-semibold text-white"
+          className="mt-4 rounded-full bg-danger px-6 py-2 text-sm font-semibold text-on-danger"
         >
           再読み込み
         </button>
@@ -332,7 +338,7 @@ function StoreListStatus({
     );
   }
   return (
-    <section className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+    <section className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-ink-weak">
       {loading ? "店舗リストを読み込み中…" : "店舗リストを準備しています…"}
     </section>
   );
@@ -347,10 +353,10 @@ function KindBadge({ kind }: { kind?: string }) {
   if (!kind) return null;
   const style =
     kind === "直営"
-      ? "bg-blue-100 text-blue-800 border-blue-300"
+      ? "bg-direct text-accent-ink border-accent-mid"
       : kind === "フランチャイズ"
-        ? "bg-amber-100 text-amber-800 border-amber-300"
-        : "bg-gray-100 text-gray-600 border-gray-300";
+        ? "bg-fc text-fc-ink border-fc-ink/40"
+        : "bg-mute text-ink-weak border-line";
   return (
     <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${style}`}>
       {kind}
@@ -389,8 +395,8 @@ function StampPanel({
     <section>
       <button
         onClick={isWatching ? onStop : onStart}
-        className={`mb-2 w-full rounded-lg py-3 font-semibold text-white ${
-          isWatching ? "bg-red-600" : "bg-gray-900"
+        className={`mb-2 w-full rounded-lg py-3 font-semibold ${
+          isWatching ? "bg-danger text-on-danger" : "bg-invert text-on-invert"
         }`}
       >
         {geo.status === "loading"
@@ -400,17 +406,17 @@ function StampPanel({
             : "位置情報の追跡を開始"}
       </button>
       {isWatching && (
-        <p className="mb-4 text-center text-xs text-emerald-700">
+        <p className="mb-4 text-center text-xs text-stamp-ink">
           ● 追跡中（移動すると自動更新されます）
         </p>
       )}
 
       {geo.status === "error" && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{geo.message}</p>
+        <p className="mb-4 rounded bg-danger-weak p-3 text-sm text-danger-ink">{geo.message}</p>
       )}
 
       {fix && (
-        <p className="mb-4 text-xs text-gray-500">
+        <p className="mb-4 text-xs text-ink-weak">
           現在地: {fix.lat.toFixed(5)}, {fix.lng.toFixed(5)} （精度 ±
           {Math.round(fix.accuracy)}m / 最終更新{" "}
           {new Date(fix.at).toLocaleTimeString("ja-JP")}）
@@ -419,55 +425,55 @@ function StampPanel({
 
       {fix && target && (
         <div className="rounded-lg border p-4">
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-ink-weak">
             {alreadyVisited ? "最寄り店舗（訪問済）" : "最寄りの未訪問店舗"}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-lg font-bold">{shortName(target.store.name)}</span>
             <KindBadge kind={target.store.kind} />
             {target.store.scale && (
-              <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs text-gray-700">
+              <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink">
                 規模 {target.store.scale}
               </span>
             )}
           </div>
-          <div className="text-sm text-gray-600">{target.store.address}</div>
+          <div className="text-sm text-ink-weak">{target.store.address}</div>
           <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-sm">
             {target.store.hours && (
               <>
-                <dt className="text-gray-500">営業時間</dt>
+                <dt className="text-ink-weak">営業時間</dt>
                 <dd>{target.store.hours}</dd>
               </>
             )}
             {target.store.parking && (
               <>
-                <dt className="text-gray-500">駐車場</dt>
+                <dt className="text-ink-weak">駐車場</dt>
                 <dd>{target.store.parking}</dd>
               </>
             )}
-            <dt className="text-gray-500">電話番号</dt>
+            <dt className="text-ink-weak">電話番号</dt>
             <dd>
               {isDialable(target.store.phone) ? (
                 <a
                   href={`tel:${target.store.phone!.replace(/[^0-9+]/g, "")}`}
-                  className="text-blue-600 underline"
+                  className="text-accent underline"
                 >
                   {target.store.phone}
                 </a>
               ) : (
-                <span className="text-gray-500">{target.store.phone || "—"}</span>
+                <span className="text-ink-weak">{target.store.phone || "—"}</span>
               )}
             </dd>
-            <dt className="text-gray-500">距離</dt>
+            <dt className="text-ink-weak">距離</dt>
             <dd className="font-mono">{formatDistance(target.distance)}</dd>
           </dl>
           <button
             disabled={!inRange || alreadyVisited}
             onClick={() => onStamp(target.store.id)}
-            className={`mt-4 w-full rounded-lg py-3 font-semibold text-white transition ${
+            className={`mt-4 w-full rounded-lg py-3 font-semibold transition ${
               !inRange || alreadyVisited
-                ? "bg-gray-300"
-                : "bg-emerald-600 active:bg-emerald-700"
+                ? "bg-disabled text-on-invert"
+                : "bg-stamp text-on-stamp active:opacity-90"
             }`}
           >
             {alreadyVisited
@@ -590,7 +596,7 @@ function StampBook({
           訪問済が先
         </SortButton>
       </div>
-      <label className="mb-3 flex items-center gap-2 text-sm text-gray-700">
+      <label className="mb-3 flex items-center gap-2 text-sm text-ink">
         <input
           type="checkbox"
           checked={onlyUnvisited}
@@ -601,7 +607,7 @@ function StampBook({
       </label>
 
       {shown.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+        <p className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-ink-weak">
           該当する店舗がありません
         </p>
       ) : sort === "pref" ? (
@@ -614,22 +620,22 @@ function StampBook({
                 <button
                   onClick={() => toggle(g.pref)}
                   className={`sticky top-0 z-10 flex w-full items-center justify-between px-3 py-2 text-left ${
-                    done ? "bg-emerald-50" : "bg-gray-50"
+                    done ? "bg-stamp-weak" : "bg-surface"
                   }`}
                 >
                   <span className="font-semibold">
                     {g.pref}
                     {g.stores.length === 0 && (
-                      <span className="ml-2 text-xs font-normal text-gray-500">
+                      <span className="ml-2 text-xs font-normal text-ink-weak">
                         （表示なし）
                       </span>
                     )}
                   </span>
                   <span className="flex items-center gap-2 text-sm">
-                    <span className={done ? "text-emerald-700" : "text-gray-600"}>
+                    <span className={done ? "text-stamp-ink" : "text-ink-weak"}>
                       {g.visited} / {g.total}
                     </span>
-                    <span className="text-gray-400">{isOpen ? "▲" : "▼"}</span>
+                    <span className="text-ink-faint">{isOpen ? "▲" : "▼"}</span>
                   </span>
                 </button>
                 {isOpen && g.stores.length > 0 && (
@@ -677,7 +683,7 @@ function SortButton({
     <button
       onClick={onClick}
       className={`flex-1 rounded-full py-1.5 text-xs font-semibold transition ${
-        active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"
+        active ? "bg-invert text-on-invert" : "bg-mute text-ink"
       }`}
     >
       {children}
@@ -696,12 +702,19 @@ function StoreRow({
 }) {
   return (
     <li className="flex items-center gap-3 p-3">
+      {/* 絵文字だと色が固定でテーマから浮くので、文字と背景で描く */}
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
-          visitedAt ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+          visitedAt
+            ? "bg-stamp text-on-stamp"
+            : "border border-line bg-mute text-ink-faint"
         }`}
       >
-        {visitedAt ? "✅" : "・"}
+        {visitedAt ? (
+          <span className="text-lg leading-none font-bold">✓</span>
+        ) : (
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -710,13 +723,13 @@ function StoreRow({
           </div>
           <KindBadge kind={store.kind} />
         </div>
-        <div className="truncate text-xs text-gray-500">{store.address}</div>
+        <div className="truncate text-xs text-ink-weak">{store.address}</div>
         {visitedAt ? (
-          <div className="text-xs text-emerald-700">
+          <div className="text-xs text-stamp-ink">
             訪問: {new Date(visitedAt).toLocaleDateString("ja-JP")}
           </div>
         ) : distance !== undefined ? (
-          <div className="text-xs text-gray-500">距離 {formatDistance(distance)}</div>
+          <div className="text-xs text-ink-weak">距離 {formatDistance(distance)}</div>
         ) : null}
       </div>
     </li>

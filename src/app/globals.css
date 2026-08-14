@@ -1,26 +1,198 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* 色は意味で名前を付け、テーマごとに値を差し替える。
+   画面側は bg-accent / text-ink-weak のように意味で書く。
+   レーダーだけはドラゴンレーダーのオマージュなので、テーマに追従させず
+   Radar.tsx 内に直書きのままにしてある。 */
+
+:root,
+[data-theme="default"] {
+  --c-bg: #ffffff;
+  --c-surface: #f9fafb;
+  --c-ink: #171717;
+  --c-ink-weak: #4b5563;
+  --c-ink-faint: #9ca3af;
+  --c-line: #d1d5db;
+  --c-mute: #f3f4f6;
+  --c-disabled: #d1d5db;
+
+  --c-invert: #111827;
+  --c-on-invert: #ffffff;
+
+  --c-accent: #2563eb;
+  --c-accent-weak: #eff6ff;
+  --c-accent-mid: #bfdbfe;
+  --c-accent-ink: #1e3a8a;
+  --c-on-accent: #ffffff;
+
+  --c-stamp: #059669;
+  --c-stamp-weak: #d1fae5;
+  --c-stamp-ink: #047857;
+  --c-on-stamp: #ffffff;
+
+  --c-danger: #dc2626;
+  --c-danger-weak: #fef2f2;
+  --c-danger-line: #fecaca;
+  --c-danger-ink: #b91c1c;
+  --c-on-danger: #ffffff;
+
+  --c-direct: #dbeafe;
+  --c-direct-ink: #1e40af;
+  --c-fc: #fef3c7;
+  --c-fc-ink: #92400e;
+}
+
+/* 看板の青・黄・赤（ブッコロール）。スタンプは黄色に濃い文字を載せる */
+[data-theme="bookoff"] {
+  --c-bg: #ffffff;
+  --c-surface: #f4f7fa;
+  --c-ink: #14243a;
+  --c-ink-weak: #4d6076;
+  --c-ink-faint: #93a4b6;
+  --c-line: #c6d6e4;
+  --c-mute: #e8eff5;
+  --c-disabled: #cbd5e0;
+
+  --c-invert: #003f75;
+  --c-on-invert: #ffffff;
+
+  --c-accent: #0068b7;
+  --c-accent-weak: #e7f1f9;
+  --c-accent-mid: #a9cee9;
+  --c-accent-ink: #00456f;
+  --c-on-accent: #ffffff;
+
+  --c-stamp: #fdd000;
+  --c-stamp-weak: #fff5cc;
+  --c-stamp-ink: #6b5300;
+  --c-on-stamp: #2b2200;
+
+  --c-danger: #e5171f;
+  --c-danger-weak: #fdeceb;
+  --c-danger-line: #f6b8b6;
+  --c-danger-ink: #b0121a;
+  --c-on-danger: #ffffff;
+
+  --c-direct: #d7e9f7;
+  --c-direct-ink: #00456f;
+  --c-fc: #fff0b3;
+  --c-fc-ink: #6b5300;
+}
+
+[data-theme="dark"] {
+  --c-bg: #0b0b0d;
+  --c-surface: #17181c;
+  --c-ink: #ededed;
+  --c-ink-weak: #a1a1aa;
+  --c-ink-faint: #71717a;
+  --c-line: #3f3f46;
+  --c-mute: #26272b;
+  --c-disabled: #3f3f46;
+
+  --c-invert: #ededed;
+  --c-on-invert: #111114;
+
+  --c-accent: #3b82f6;
+  --c-accent-weak: #10233d;
+  --c-accent-mid: #1e3a5f;
+  --c-accent-ink: #bfdbfe;
+  --c-on-accent: #ffffff;
+
+  --c-stamp: #10b981;
+  --c-stamp-weak: #0c3a2d;
+  --c-stamp-ink: #6ee7b7;
+  --c-on-stamp: #04231a;
+
+  --c-danger: #ef4444;
+  --c-danger-weak: #351616;
+  --c-danger-line: #7f1d1d;
+  --c-danger-ink: #fca5a5;
+  --c-on-danger: #ffffff;
+
+  --c-direct: #16304f;
+  --c-direct-ink: #bfdbfe;
+  --c-fc: #3a2c0c;
+  --c-fc-ink: #fcd34d;
+}
+
+/* 生成りの紙に朱色のスタンプ */
+[data-theme="paper"] {
+  --c-bg: #f7f3e8;
+  --c-surface: #fffdf6;
+  --c-ink: #3a2e22;
+  --c-ink-weak: #7a6a57;
+  --c-ink-faint: #a2937e;
+  --c-line: #d9cdb6;
+  --c-mute: #ece4d3;
+  --c-disabled: #cfc4ae;
+
+  --c-invert: #3a2e22;
+  --c-on-invert: #fffdf6;
+
+  --c-accent: #8a6a3b;
+  --c-accent-weak: #f2ead9;
+  --c-accent-mid: #ddcaa6;
+  --c-accent-ink: #5c4526;
+  --c-on-accent: #fffdf6;
+
+  --c-stamp: #c0392b;
+  --c-stamp-weak: #f7e3de;
+  --c-stamp-ink: #8e2a1e;
+  --c-on-stamp: #fffdf6;
+
+  --c-danger: #a8321f;
+  --c-danger-weak: #f6e4de;
+  --c-danger-line: #e0b3a6;
+  --c-danger-ink: #852614;
+  --c-on-danger: #fffdf6;
+
+  --c-direct: #e6ddc7;
+  --c-direct-ink: #5c4526;
+  --c-fc: #f2e2c2;
+  --c-fc-ink: #7a5a1e;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-app: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-ink: var(--c-ink);
+  --color-ink-weak: var(--c-ink-weak);
+  --color-ink-faint: var(--c-ink-faint);
+  --color-line: var(--c-line);
+  --color-mute: var(--c-mute);
+  --color-disabled: var(--c-disabled);
+
+  --color-invert: var(--c-invert);
+  --color-on-invert: var(--c-on-invert);
+
+  --color-accent: var(--c-accent);
+  --color-accent-weak: var(--c-accent-weak);
+  --color-accent-mid: var(--c-accent-mid);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-on-accent: var(--c-on-accent);
+
+  --color-stamp: var(--c-stamp);
+  --color-stamp-weak: var(--c-stamp-weak);
+  --color-stamp-ink: var(--c-stamp-ink);
+  --color-on-stamp: var(--c-on-stamp);
+
+  --color-danger: var(--c-danger);
+  --color-danger-weak: var(--c-danger-weak);
+  --color-danger-line: var(--c-danger-line);
+  --color-danger-ink: var(--c-danger-ink);
+  --color-on-danger: var(--c-on-danger);
+
+  --color-direct: var(--c-direct);
+  --color-direct-ink: var(--c-direct-ink);
+  --color-fc: var(--c-fc);
+  --color-fc-ink: var(--c-fc-ink);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--c-bg);
+  color: var(--c-ink);
   font-family: Arial, Helvetica, sans-serif;
 }
