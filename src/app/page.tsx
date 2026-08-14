@@ -12,6 +12,13 @@ import {
   migrateVisits,
 } from "@/lib/storage";
 import { parseCsv } from "@/lib/csv";
+import {
+  buildExport,
+  parseImport,
+  mergeVisits,
+  downloadJson,
+  type MergePreview,
+} from "@/lib/transfer";
 import { Radar } from "./Radar";
 import { STAMP_RADIUS_M, distanceMeters } from "@/lib/geo";
 
@@ -262,6 +269,15 @@ export default function HomePage() {
               storesWithDistance={storesWithDistance}
             />
           )}
+
+          <TransferPanel
+            stores={chain.stores}
+            visits={visits}
+            onApply={(next) => {
+              saveVisits(next);
+              setVisits(next);
+            }}
+          />
 
           <div className="mt-8 border-t pt-4">
             <button onClick={handleReset} className="text-sm text-red-600 underline">
@@ -527,6 +543,127 @@ function StampBook({
         );
       })}
     </ul>
+  );
+}
+
+// スタンプ記録の書き出しと読み込み。端末を変えるときと、外部の記録を取り込むときに使う。
+function TransferPanel({
+  stores,
+  visits,
+  onApply,
+}: {
+  stores: Store[];
+  visits: VisitRecord[];
+  onApply: (next: VisitRecord[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<
+    (MergePreview & { unknownIds: string[]; total: number }) | null
+  >(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  const handleExport = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadJson(`stamp-rally-${stamp}.json`, buildExport(visits));
+  };
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    setDone(null);
+    setPending(null);
+    const parsed = parseImport(await file.text(), stores);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+    const preview = mergeVisits(visits, parsed.records);
+    setPending({
+      ...preview,
+      unknownIds: parsed.unknownIds,
+      total: parsed.records.length,
+    });
+  };
+
+  return (
+    <section className="mt-8 border-t pt-4">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-sm font-semibold text-gray-700 underline"
+      >
+        記録の持ち運び {open ? "▲" : "▼"}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-3 rounded-lg bg-gray-50 p-4">
+          <p className="text-xs text-gray-600">
+            スタンプはこの端末の中だけに保存されています。別の端末に移すときは、
+            書き出したファイルを移してから読み込んでください。
+          </p>
+
+          <button
+            onClick={handleExport}
+            className="w-full rounded-lg bg-gray-900 py-2 text-sm font-semibold text-white"
+          >
+            記録を書き出す（{visits.length}店）
+          </button>
+
+          <label className="block w-full cursor-pointer rounded-lg border border-gray-400 bg-white py-2 text-center text-sm font-semibold text-gray-700">
+            記録を読み込む
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleFile(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {done && <p className="text-sm text-emerald-700">{done}</p>}
+
+          {pending && (
+            <div className="rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm">
+              <div className="font-semibold text-blue-900">読み込む内容</div>
+              <ul className="mt-1 space-y-0.5 text-blue-900">
+                <li>認識した記録: {pending.total} 店</li>
+                <li>新しく増える: {pending.added} 店</li>
+                <li>訪問日が古いほうに直る: {pending.updated} 店</li>
+                <li>変わらない: {pending.unchanged} 店</li>
+                {pending.unknownIds.length > 0 && (
+                  <li className="text-blue-700">
+                    店舗一覧に無いため取り込めない: {pending.unknownIds.length} 件
+                  </li>
+                )}
+              </ul>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => {
+                    onApply(pending.merged);
+                    setDone(
+                      `取り込みました（${pending.added}店を追加、${pending.updated}店の日付を更新）`
+                    );
+                    setPending(null);
+                  }}
+                  className="flex-1 rounded-lg bg-emerald-600 py-2 font-semibold text-white"
+                >
+                  取り込む
+                </button>
+                <button
+                  onClick={() => setPending(null)}
+                  className="flex-1 rounded-lg border border-gray-400 bg-white py-2 text-gray-700"
+                >
+                  やめる
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
