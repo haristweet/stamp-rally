@@ -2,8 +2,21 @@
 
 import type { ChainData, Store, VisitRecord } from "./types";
 
-const CHAIN_KEY = "stamp-rally:chain";
-const VISITS_KEY = "stamp-rally:visits";
+export const CHAIN_KEY = "stamp-rally:chain";
+export const VISITS_KEY = "stamp-rally:visits";
+
+// useSyncExternalStore から localStorage を読むための素の値。
+// 文字列なので、中身が同じなら React は同一とみなす。
+export function readRaw(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(key);
+}
+
+// 同一タブの書き込みでは storage イベントが飛ばないので、他タブ由来の変更だけ拾う
+export function subscribeStorage(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
 
 export function loadChain(): ChainData | null {
   if (typeof window === "undefined") return null;
